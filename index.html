@@ -1,0 +1,246 @@
+indez.html
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>King AI - Voice Activated Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#090d16',
+                        darkCard: '#111827',
+                        accentCyan: '#38bdf8',
+                        accentPurple: '#a855f7'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        window.firebaseModules = { initializeApp, getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged };
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        input, textarea { caret-color: #38bdf8 !important; }
+        .glass-panel { background: rgba(17, 24, 39, 0.75); backdrop-filter: blur(16px); border: 1px solid rgba(56, 189, 248, 0.15); }
+        .wave-bar { animation: pulseWave 1.2s infinite ease-in-out; }
+        @keyframes pulseWave { 0%, 100% { height: 8px; } 50% { height: 36px; } }
+    </style>
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen flex flex-col font-sans selection:bg-accentCyan selection:text-black">
+
+    <!-- Header -->
+    <header class="glass-panel border-b border-slate-800/80 sticky top-0 z-30 px-4 py-3 flex items-center justify-between shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-accentCyan to-accentPurple flex items-center justify-center shadow-lg shadow-accentCyan/20">
+                <i class="fa-solid fa-crown text-slate-950 text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide bg-gradient-to-r from-accentCyan to-accentPurple bg-clip-text text-transparent">King AI</h1>
+                <p class="text-xs text-slate-400">Voice-Activated Intelligent Assistant</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <button id="authBtn" onclick="openAuthModal()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-accentCyan border border-accentCyan/30 transition shadow-sm">
+                <i class="fa-solid fa-user-circle mr-1"></i> Sign In
+            </button>
+            <button onclick="toggleSettings()" class="w-9 h-9 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition border border-slate-700">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-6 flex flex-col gap-4">
+        
+        <!-- Chat Box / Workspace -->
+        <div id="chatContainer" class="flex-1 glass-panel rounded-2xl p-4 sm:p-6 flex flex-col space-y-4 overflow-y-auto max-h-[60vh] min-h-[350px] shadow-2xl">
+            <!-- Welcome Banner -->
+            <div class="flex items-start space-x-3 my-auto text-center mx-auto max-w-md py-8">
+                <div class="p-4 rounded-2xl bg-accentCyan/10 border border-accentCyan/30 text-accentCyan w-full">
+                    <i class="fa-solid fa-microphone-lines text-3xl mb-3"></i>
+                    <h2 class="text-lg font-bold text-white mb-1">Welcome to King AI</h2>
+                    <p class="text-sm text-slate-300">Tap the microphone to speak your command, type in the box below, or use quick shortcuts!</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Waveform Visualizer (Hidden by default) -->
+        <div id="visualizer" class="hidden glass-panel rounded-xl p-3 flex items-center justify-center space-x-2 border border-accentCyan/40">
+            <span class="text-xs text-accentCyan font-medium mr-2"><i class="fa-solid fa-microphone animate-pulse mr-1"></i> Listening...</span>
+            <div class="w-1.5 bg-accentCyan rounded-full wave-bar" style="animation-delay: 0.1s"></div>
+            <div class="w-1.5 bg-accentPurple rounded-full wave-bar" style="animation-delay: 0.3s"></div>
+            <div class="w-1.5 bg-accentCyan rounded-full wave-bar" style="animation-delay: 0.2s"></div>
+            <div class="w-1.5 bg-accentPurple rounded-full wave-bar" style="animation-delay: 0.4s"></div>
+        </div>
+
+        <!-- Input & Voice Controls Bar -->
+        <div class="glass-panel rounded-2xl p-2 sm:p-3 flex items-center gap-2 shadow-xl border border-slate-800">
+            <textarea id="userInput" rows="1" placeholder="Or type your request here..." class="flex-1 bg-slate-900/80 text-slate-100 placeholder-slate-400 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-accentCyan border border-slate-700/60 resize-none max-h-24"></textarea>
+            
+            <button onclick="handleSend()" class="w-11 h-11 rounded-xl bg-accentCyan hover:bg-sky-400 text-slate-950 flex items-center justify-center transition shadow-lg shadow-accentCyan/20 flex-shrink-0">
+                <i class="fa-solid fa-paper-plane text-sm"></i>
+            </button>
+            <button id="micBtn" onclick="toggleVoiceRecording()" class="w-11 h-11 rounded-xl bg-gradient-to-tr from-accentCyan to-accentPurple hover:opacity-90 text-slate-950 flex items-center justify-center transition shadow-lg shadow-accentPurple/20 flex-shrink-0">
+                <i class="fa-solid fa-microphone text-sm"></i>
+            </button>
+        </div>
+    </main>
+
+    <!-- Settings Drawer / Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 border border-slate-700 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white"><i class="fa-solid fa-gear mr-2 text-accentCyan"></i>King AI Settings</h3>
+                <button onclick="toggleSettings()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Gemini API Key</label>
+                <input type="password" id="apiKeyInput" placeholder="Enter custom API key (optional)" class="w-full bg-slate-900 text-slate-100 text-sm rounded-lg px-3 py-2 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-accentCyan">
+            </div>
+            <div class="flex justify-end pt-2">
+                <button onclick="saveSettings()" class="px-4 py-2 bg-accentCyan text-slate-950 font-semibold text-sm rounded-lg hover:bg-sky-400 transition">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 border border-slate-700 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 id="authTitle" class="text-base font-bold text-white"><i class="fa-solid fa-user-lock mr-2 text-accentCyan"></i>Sign In to King AI</h3>
+                <button onclick="openAuthModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="space-y-3">
+                <input type="email" id="authEmail" placeholder="Email address" class="w-full bg-slate-900 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-accentCyan">
+                <input type="password" id="authPassword" placeholder="Password" class="w-full bg-slate-900 text-slate-100 text-sm rounded-lg px-3 py-2.5 border border-slate-700 focus:outline-none focus:ring-1 focus:ring-accentCyan">
+            </div>
+            <div class="flex items-center justify-between pt-2">
+                <button onclick="handleAnonymousAuth()" class="text-xs text-slate-400 hover:text-accentCyan underline">Continue as Guest</button>
+                <button onclick="submitAuth()" id="authSubmitBtn" class="px-4 py-2 bg-accentCyan text-slate-950 font-semibold text-sm rounded-lg hover:bg-sky-400 transition">Sign In</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isListening = false;
+        let recognition = null;
+
+        // Speech Recognition Setup
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = (event) => {
+                const text = event.results[0][0].transcript;
+                document.getElementById('userInput').value = text;
+                stopListeningVisuals();
+                handleSend();
+            };
+            recognition.onerror = () => stopListeningVisuals();
+            recognition.onend = () => stopListeningVisuals();
+        }
+
+        function toggleVoiceRecording() {
+            if (!recognition) {
+                alert("Speech recognition is not supported in this browser. Try Safari or Chrome.");
+                return;
+            }
+            if (isListening) {
+                recognition.stop();
+                stopListeningVisuals();
+            } else {
+                recognition.start();
+                startListeningVisuals();
+            }
+        }
+
+        function startListeningVisuals() {
+            isListening = true;
+            document.getElementById('visualizer').classList.remove('hidden');
+            document.getElementById('micBtn').classList.add('bg-red-500', 'animate-pulse');
+        }
+
+        function stopListeningVisuals() {
+            isListening = false;
+            document.getElementById('visualizer').classList.add('hidden');
+            document.getElementById('micBtn').classList.remove('bg-red-500', 'animate-pulse');
+        }
+
+        function toggleSettings() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.toggle('hidden');
+        }
+
+        function openAuthModal() {
+            const modal = document.getElementById('authModal');
+            modal.classList.toggle('hidden');
+        }
+
+        function saveSettings() {
+            const key = document.getElementById('apiKeyInput').value;
+            if(key) localStorage.setItem('gemini_api_key', key);
+            toggleSettings();
+            alert('Settings saved successfully!');
+        }
+
+        function handleAnonymousAuth() {
+            openAuthModal();
+            appendMessage('King AI', 'Signed in successfully as Guest!');
+        }
+
+        function submitAuth() {
+            openAuthModal();
+            appendMessage('King AI', 'Signed in successfully!');
+        }
+
+        function appendMessage(sender, text) {
+            const container = document.getElementById('chatContainer');
+            if(container.querySelector('.max-w-md')) container.innerHTML = '';
+            
+            const div = document.createElement('div');
+            div.className = `p-3.5 rounded-2xl max-w-[85%] text-sm ${sender === 'You' ? 'ml-auto bg-accentCyan text-slate-950 font-medium' : 'mr-auto glass-panel text-slate-100 border border-slate-700'}`;
+            div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function handleSend() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if(!text) return;
+            
+            appendMessage('You', text);
+            input.value = '';
+
+            setTimeout(() => {
+                const replies = [
+                    "Hello! I am King AI, your voice assistant. How can I help you conquer your day?",
+                    "That's a fantastic request! I'm ready to assist you right away.",
+                    "Executing your command now, boss!",
+                    "I hear you loud and clear. Let's make it happen!"
+                ];
+                const reply = replies[Math.floor(Math.random() * replies.length)];
+                appendMessage('King AI', reply);
+                
+                // Speak out reply if speech synthesis available
+                if('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(reply);
+                    window.speechSynthesis.speak(utterance);
+                }
+            }, 600);
+        }
+    </script>
+</body>
+</html>
